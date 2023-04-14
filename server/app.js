@@ -13,25 +13,23 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
-const systemPrompt = `sen bir sahte yorum üreten araçsın. kullanıcıdan ürün adı, olumlu-olumsuz değeri ve kaç adet yorum üretileceğini alarak aşağıdaki formatta yorumlar üreteceksin.
+const systemPrompt = `You will be using a comment generator tool that creates comments about products. To generate comments, you will need to provide the product name, a positive or negative sentiment value, the number of comments you want to generate, and the language of the comment. If no language is specified, the default language will be English.
+The generated comments must be at least 300 characters long and contain real information about the specified product. Spelling mistakes, non-capitalized sentences, abbreviations, emojis, and slang words must be used most of the time to make the comments sound natural, as if written by a human.
 
-author: Ad Soyad
-comment: Ürün hakkında üretilen yorum
+Each comment will be in the following format:
 
+author: [Name Surname]
+comment: [Comment about the product]
 ---
+author: [Name Surname]
+comment: [Comment about the product]
 
-author: Ad Soyad
-comment: Ürün hakkında üretilen yorum
+If any of the following conditions are met, the generator will return "NO_COMMENT":
 
-Aşağıdaki koşullardan bir tanesi bile yerine gelirse "NO_COMMENT" olarak cevap ver.
-
-- Eğer ürün gerçek bir ürün değilse
-- Ürün hakkında gerçekten bir fikrin yoksa
-- Ürün e-ticaret platformlarında bulunmuyorsa
-- Ürün adında şehir ismi geçiyorsa
-
-eğer ürünle ilgili yorum ürettiysen NO_COMMENT değerini asla döndürme, ürün hariç hiçbir soruya cevap verme. Ve verdiğin bütün cevaplar yukarıdaki formatta sahte yorumlar olacak, ancak sahte yorum üretsen bile yorumlar belirtilen ürüne ait ve gerçek bilgiler içermeli. Yorumlar en az 300 karakter uzunluğunda olsun!`
-
+The product is not real
+The generator has no knowledge of the product
+The product is unavailable on e-commerce platforms
+The product name includes the name of a city`
 
 app.get('/', (req, res) => {
 	res.send('api calisiyor!')
@@ -39,8 +37,8 @@ app.get('/', (req, res) => {
 
 app.post('/create-fake-comments', async (req, res) => {
 
-	const completion = await openai.createChatCompletion({
-		model: "gpt-4",
+	const response = await openai.createChatCompletion({
+		model: "gpt-3.5-turbo",
 		messages: [
 			{
 				role: "system",
@@ -48,27 +46,33 @@ app.post('/create-fake-comments', async (req, res) => {
 			},
 			{
 				role: "user",
-				content: `${req.body.productName} - ${req.body.commentType} - ${req.body.commentCount} adet`
+				content: `Product name: ${req.body.productName}\nComment type: ${req.body.commentType}\nCount: ${req.body.commentCount}\nComment Language: ${req.body.language}`
 			}
 		],
-	});
-
-	console.log(completion.data.choices[0].message.content)
-
-	if (completion.data.choices[0].message.content === "NO_COMMENT") {
-		return res.send({
-			error: true
-		})
-	}
-
-	const comments = completion.data.choices[0].message.content.split('---').map(comment => {
-		const matches = comment.match(/author: (.+)\ncomment: (.+)/s);
-		const author = matches[1];
-		const commentText = matches[2];
-		return { author, comment: commentText };
-	});
-
-	res.send(comments)
+		stream: true,
+	}, { responseType: 'stream' });
+	
+	const stream = response.data
+	
+	stream.on('data', (chunk) => {
+	   // Messages in the event stream are separated by a pair of newline characters.
+	   const payloads = chunk.toString().split("\n\n")
+	   for (const payload of payloads) {
+		   if (payload.includes('[DONE]')) return;
+		   if (payload.startsWith("data:")) {
+			   const data = payload.replaceAll(/(\n)?^data:\s*/g, ''); // in case there's multiline data event
+			   try {
+				   const delta = JSON.parse(data.trim())
+				   res.write(delta.choices[0].delta?.content)
+			   } catch (error) {
+				   console.log(`Error with JSON.parse and ${payload}.\n${error}`)
+			   }
+		   }
+	   }
+	})
+	
+	stream.on('end', () => res.end())
+	stream.on('error', (e) => console.error(e))
 })
 
 app.listen(3000, () => console.log('3000 portundan dinleniyor!'))
