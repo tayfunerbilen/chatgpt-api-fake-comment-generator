@@ -24,12 +24,14 @@ comment: [Comment about the product]
 author: [Name Surname]
 comment: [Comment about the product]
 
-If any of the following conditions are met, the generator will return "NO_COMMENT":
+If any of the following conditions are met you will return "NO_COMMENT" without any explanation:
 
-The product is not real
+The product is not real, or it is not a product
 The generator has no knowledge of the product
 The product is unavailable on e-commerce platforms
-The product name includes the name of a city`
+The product name includes the name of a city
+The product name includes the name of a country
+If you think it is irrelevant to generate comments for the product`
 
 app.get('/', (req, res) => {
 	res.send('api calisiyor!')

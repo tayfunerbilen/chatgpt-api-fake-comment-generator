@@ -25,6 +25,7 @@ function App() {
     e.preventDefault()
     setLoading(true)
     setAnswer('')
+    setError(false)
     fetch('http://localhost:3000/create-fake-comments', {
       method: 'post',
       headers: {
@@ -59,8 +60,6 @@ function App() {
         if (res?.error) {
           setError(true)
           setComments([])
-        } else {
-          setError(false)
         }
       })
       .finally(() => {
@@ -71,12 +70,19 @@ function App() {
   const isDisabled = Object.values(formData).some(value => !value) || loading
 
   useEffect(() => {
+    if (answer === 'NO_COMMENT') {
+      setComments([])
+      setError(true)
+
+      return;
+    }
+
     if (answer) {
       const comments = answer.split('---').map(comment => {
         const matches = comment.match(/author: (.+)\ncomment: (.+)/s);
 
         if (!matches){
-          return {author: '', commentText: ''};
+          return {author: '', commentText: ''}
         }
 
         const author = matches[1];
@@ -148,19 +154,20 @@ function App() {
         </div>
       )}
 
-      {comments.length > 0 && (
+      {(comments.length > 0 && !error) && (
         <div className="grid gap-y-4">
           {comments.map(({commentText, author}, key) => (
-            <section className="p-4 rounded border border-zinc-300">
+            commentText !== '' && 
+            (<section className="p-4 rounded border border-zinc-300">
               <header className="text-sm font-semibold mb-4">
                 <h6 className="bg-blue-500 text-white py-1.5 px-3 inline rounded-md">
-                  {author ? author : '...'}
+                  {author}
                 </h6>
               </header>
               <p className="text-sm">
-                {commentText ? commentText : '...'}
+                {commentText}
               </p>
-            </section>
+            </section>)
           ))}
         </div>
       )}
